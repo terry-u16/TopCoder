@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30114.105
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SRM 673", "SRM 673.csproj", "{32DE4750-D4F3-47EA-8ACB-4EAECBD87E37}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{32DE4750-D4F3-47EA-8ACB-4EAECBD87E37}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{32DE4750-D4F3-47EA-8ACB-4EAECBD87E37}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32DE4750-D4F3-47EA-8ACB-4EAECBD87E37}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{32DE4750-D4F3-47EA-8ACB-4EAECBD87E37}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {56FBC986-D05C-4B0B-9EB1-DA80763C5579}
+	EndGlobalSection
+EndGlobal
