@@ -62,56 +62,95 @@ internal class HardestMaze
 
     public char[] FindSolution()
     {
+        const int generateLimit = 2000;
         const int timeLimit = 9900;
         var stopWatch = new Stopwatch();
         stopWatch.Start();
-        _walls = InitializeWalls();
         _items = InitializeItems();
-
-        DigMain(_starts[0]);
-        DigSub();
-
         var calculator = new ScoreCalculator(_mazeSize, _starts, _targets, _items);
-        var score = calculator.CalculateScore(_walls);
-        double t0 = score * 0.0001;
-        double t1 = score * 0.000005;
+
+        var bestScore = 0;
+        bool[,] bestWalls = null;
+
+        while (stopWatch.ElapsedMilliseconds < generateLimit)
+        {
+            _walls = InitializeWalls();
+            DigMain(_starts[0]);
+            DigSub();
+            var score = calculator.CalculateScore(_walls);
+
+            if (score < Inf && score > bestScore)
+            {
+                // 既に_wallsに入ってる
+                bestWalls = _walls;
+                bestScore = score;
+            }
+            else
+            {
+                //元に戻す
+                _walls = bestWalls;
+            }
+        }
+
+        double t0 = bestScore * 0.0001;
+        double t1 = bestScore * 0.000005;
+
+        var iteration = 0;
 
         while (stopWatch.ElapsedMilliseconds < timeLimit)
         {
+            iteration++;
             var time = (double)stopWatch.ElapsedMilliseconds / timeLimit;
             var temperature = Math.Pow(t0, 1.0 - time) * Math.Pow(t1, time);
 
             if (_xorShift.Next(100) < 70)
             {
-                score = TrySwap(calculator, score, temperature);
+                bestScore = TrySwap(calculator, bestScore, temperature);
             }
             else
             {
-                score = TryFlip(calculator, score, temperature);
+                bestScore = TryFlip(calculator, bestScore, temperature);
             }
         }
-
+        Debug.WriteLine("iteration: " + iteration);
         return WallToGrid(_walls);
     }
 
     int TrySwap(ScoreCalculator calculator, int lastScore, double temperature)
     {
-        var swapA = new Square(_xorShift.Next(_mazeSize), _xorShift.Next(_mazeSize));
-        var swapB = new Square(_xorShift.Next(_mazeSize), _xorShift.Next(_mazeSize));
-        if (_walls[swapA.Row, swapA.Column] ^ _walls[swapA.Row, swapB.Column])
+        const int SwapSquare = 7;
+        var offset = new Diff(_xorShift.Next(_mazeSize - SwapSquare + 1), _xorShift.Next(_mazeSize - SwapSquare + 1));
+        var swapCount = _xorShift.Next(5); 
+        swapCount = swapCount < 2 ? 2 : swapCount; // 2の回数を気持ち多めに(2,2,2,3,4点スワップ)
+        var swaps = new Square[swapCount];
+        var swappedWalls = new bool[swapCount];
+
+        for (int i = 0; i < swapCount; i++)
         {
-            _walls[swapA.Row, swapA.Column] ^= true;
-            _walls[swapB.Row, swapB.Column] ^= true;
+            swaps[i] = new Square(_xorShift.Next(SwapSquare), _xorShift.Next(SwapSquare)) + offset;
+            swappedWalls[i] = _walls[swaps[i].Row, swaps[i].Column];
+        }
+
+        if (swappedWalls.Any(w => w) && swappedWalls.Any(w => !w))  // 全部壁or全部通路はSwapの意味がない
+        {
+            for (int i = 0; i < swaps.Length; i++)
+            {
+                _walls[swaps[i].Row, swaps[i].Column] = swappedWalls[(i + 1) % swappedWalls.Length];
+            }
+
             var newScore = calculator.CalculateScore(_walls);
             if (newScore < Inf && (newScore > lastScore))// || Math.Exp((lastScore - newScore) / temperature) > _xorShift.NextDouble()))
             {
                 ShowMap();
+                Debug.WriteLine("Swap: " + newScore);
                 return newScore;
             }
             else
             {
-                _walls[swapA.Row, swapA.Column] ^= true;
-                _walls[swapB.Row, swapB.Column] ^= true;
+                for (int i = 0; i < swaps.Length; i++)
+                {
+                    _walls[swaps[i].Row, swaps[i].Column] = swappedWalls[i];
+                }
                 return lastScore;
             }
         }
@@ -127,6 +166,7 @@ internal class HardestMaze
         if (newScore < Inf && newScore > lastScore)
         {
             ShowMap();
+            Debug.WriteLine("Flip: " + newScore);
             return newScore;
         }
         else
@@ -142,8 +182,6 @@ internal class HardestMaze
         {
             return;
         }
-
-        ShowMap();
 
         if (_items[current.Row, current.Column].Type != Type.None || IsNotBridge(current))
         {
@@ -231,11 +269,11 @@ internal class HardestMaze
         {
             for (int column = 0; column < _mazeSize; column++)
             {
-                Console.Write(_walls[row, column] ? '#' : '.');
+                Debug.Write(_walls[row, column] ? '#' : '.');
             }
-            Console.WriteLine();
+            Debug.WriteLine("");
         }
-        Console.WriteLine();
+        Debug.WriteLine("");
     }
 
     private bool IsNotBridge(Square current)
