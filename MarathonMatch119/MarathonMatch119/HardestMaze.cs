@@ -361,8 +361,9 @@ internal class ScoreCalculator
     readonly int _mazeSize;
     readonly Square[] _starts;
     readonly Square[][] _targets;
-    Item[,] _items;
-    Diff[] _diffs;
+    readonly Item[] _items;
+    readonly Diff[] _diffs;
+    readonly List<int>[] _graph;
     const int Inf = 1 << 20;
 
     public ScoreCalculator(int mazeSize, Square[] starts, Square[][] targets, Item[,] items)
@@ -370,8 +371,13 @@ internal class ScoreCalculator
         _mazeSize = mazeSize;
         _starts = starts;
         _targets = targets;
-        _items = items;
+        _items = InitializeItems(mazeSize, starts, targets);
         _diffs = new Diff[] { new Diff(-1, 0), new Diff(1, 0), new Diff(0, -1), new Diff(0, 1) };
+        _graph = new List<int>[mazeSize * mazeSize];
+        for (int i = 0; i < _graph.Length; i++)
+        {
+            _graph[i] = new List<int>();
+        }
     }
 
     public int CalculateScore(bool[,] walls)
@@ -386,6 +392,8 @@ internal class ScoreCalculator
             }
         }
 
+        ConstructGraph(walls);
+
         for (int robot = 0; robot < _starts.Length; robot++)
         {
             var targets = _targets[robot];
@@ -399,14 +407,14 @@ internal class ScoreCalculator
                 }
                 distances[i, i] = 0;
             }
-            if (!Bfs(_starts[robot], -1, targets.Length, walls, distances, robot))   // ダメそうならさっさとreturn
+            if (!Bfs(_starts[robot], -1, targets.Length, _graph, distances, robot))   // ダメそうならさっさとreturn
             {
                 return Inf;
             }
             
             for (int target = 0; target + 1 < targets.Length; target++)
             {
-                if (!Bfs(targets[target], target, targets.Length, walls, distances, robot))
+                if (!Bfs(targets[target], target, targets.Length, _graph, distances, robot))
                 {
                     return Inf;
                 }
@@ -416,29 +424,28 @@ internal class ScoreCalculator
         return score;
     }
 
-    private bool Bfs(Square start, int me, int targetCount, bool[,] walls, int[,] targetDistances, int currentRobot)
+    private bool Bfs(Square start, int me, int targetCount, List<int>[] graph, int[,] targetDistances, int currentRobot)
     {
-        var todo = new Queue<Square>();
-        todo.Enqueue(start);
+        var todo = new Queue<int>();
+        todo.Enqueue(start.Row * _mazeSize + start.Column);
         var found = 0;
         var toFound = targetCount - me - 1;
-        var distances = new int[_mazeSize, _mazeSize];
-        distances[start.Row, start.Column] = 1;     // Inf埋めする代わりに距離を1-indexed(?)にする
+        var distances = new int[_mazeSize * _mazeSize];
+        distances[start.Row * _mazeSize + start.Column] = 1;     // Inf埋めする代わりに距離を1-indexed(?)にする
 
         while (todo.Count > 0)
         {
             var current = todo.Dequeue();
-            var currentDistance = distances[current.Row, current.Column];
-            foreach (var diff in _diffs)
+            var currentDistance = distances[current];
+            foreach (var next in graph[current])
             {
-                var next = current + diff;
-                if (next.IsInsideOf(_mazeSize) && !walls[next.Row, next.Column] && distances[next.Row, next.Column] == 0)
+                if (distances[next] == 0)
                 {
                     var nextDistance = currentDistance + 1;
-                    distances[next.Row, next.Column] = nextDistance;
+                    distances[next] = nextDistance;
 
                     // 目的地かどうか確認
-                    var item = _items[next.Row, next.Column];
+                    var item = _items[next];
                     if (item.Type == Type.Taret && item.Robot == currentRobot && item.Target > me)
                     {
                         found++;
@@ -458,7 +465,40 @@ internal class ScoreCalculator
         return false;
     }
 
-    int GetMinDistancePermutation(int current, int selected, int targetCount, int[,] distances)
+    private void ConstructGraph(bool[,] walls)
+    {
+        // グリッドのまま探索するとエッジ数が4*N*Nになって遅いのでグラフに変換。一本道が多いので半分強になる？
+        for (int i = 0; i < _graph.Length; i++)
+        {
+            _graph[i].Clear();  // インスタンスは使い回し。GCの動作を減らしたい。
+        }
+
+        for (int row = 0; row < _mazeSize; row++)
+        {
+            for (int column = 0; column < _mazeSize; column++)
+            {
+                if (!walls[row, column])
+                {
+                    var current = row * _mazeSize + column;
+                    if (row + 1 < _mazeSize && !walls[row + 1, column])
+                    {
+                        var down = current + _mazeSize;
+                        _graph[current].Add(down);
+                        _graph[down].Add(current);
+                    }
+
+                    if (column + 1 < _mazeSize && !walls[row, column + 1])
+                    {
+                        var right = current + 1;
+                        _graph[current].Add(right);
+                        _graph[right].Add(current);
+                    }
+                }
+            }
+        }
+    }
+
+    private int GetMinDistancePermutation(int current, int selected, int targetCount, int[,] distances)
     {
         if ((1 << targetCount) - 1 == selected)
         {
@@ -477,6 +517,21 @@ internal class ScoreCalculator
             }
             return min;
         }
+    }
+
+    private static Item[] InitializeItems(int mazeSize, Square[] starts, Square[][] targets)
+    {
+        var items = new Item[mazeSize * mazeSize];
+        for (int robot = 0; robot < starts.Length; robot++)
+        {
+            items[starts[robot].Row * mazeSize + starts[robot].Column] = new Item(Type.Robot, robot);
+            var eachTargets = targets[robot];
+            for (int target = 0; target < eachTargets.Length; target++)
+            {
+                items[eachTargets[target].Row * mazeSize + eachTargets[target].Column] = new Item(Type.Taret, robot, target);
+            }
+        }
+        return items;
     }
 }
 
