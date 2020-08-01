@@ -92,20 +92,20 @@ internal class HardestMaze
             }
         }
 
-        double t0 = bestScore * 0.0001;
-        double t1 = bestScore * 0.000005;
+        double t0 = bestScore * 0.001;
+        double t1 = bestScore * 0.00001;
 
         var iteration = 0;
 
         while (stopWatch.ElapsedMilliseconds < timeLimit)
         {
             iteration++;
-            var time = (double)stopWatch.ElapsedMilliseconds / timeLimit;
+            var time = (double)(stopWatch.ElapsedMilliseconds - generateLimit) / (timeLimit - generateLimit);
             var temperature = Math.Pow(t0, 1.0 - time) * Math.Pow(t1, time);
 
             if (_xorShift.Next(100) < 70)
             {
-                bestScore = TrySwap(calculator, bestScore, temperature);
+                bestScore = TrySwap(calculator, bestScore, temperature, time);
             }
             else
             {
@@ -113,13 +113,17 @@ internal class HardestMaze
             }
         }
         Debug.WriteLine("iteration: " + iteration);
-        return WallToGrid(_walls);
+        return WallToGrid(_walls);    
     }
 
-    int TrySwap(ScoreCalculator calculator, int lastScore, double temperature)
+    int TrySwap(ScoreCalculator calculator, int lastScore, double temperature, double time)
     {
-        const int SwapSquare = 7;
-        var offset = new Diff(_xorShift.Next(_mazeSize - SwapSquare + 1), _xorShift.Next(_mazeSize - SwapSquare + 1));
+        const int MaxSwapSquare = 15;
+        const int MinSwapSquare = 3;
+        const double expRatio = 10;
+        int swapSquare = Math.Min(_mazeSize, (int)((MaxSwapSquare - MinSwapSquare) * Math.Exp(-time * expRatio)) + MinSwapSquare);
+        Debug.WriteLine(time + "ms :" + swapSquare);
+        var offset = new Diff(_xorShift.Next(_mazeSize - swapSquare + 1), _xorShift.Next(_mazeSize - swapSquare + 1));
         var swapCount = _xorShift.Next(5); 
         swapCount = swapCount < 2 ? 2 : swapCount; // 2の回数を気持ち多めに(2,2,2,3,4点スワップ)
         var swaps = new Square[swapCount];
@@ -127,7 +131,7 @@ internal class HardestMaze
 
         for (int i = 0; i < swapCount; i++)
         {
-            swaps[i] = new Square(_xorShift.Next(SwapSquare), _xorShift.Next(SwapSquare)) + offset;
+            swaps[i] = new Square(_xorShift.Next(swapSquare), _xorShift.Next(swapSquare)) + offset;
             swappedWalls[i] = _walls[swaps[i].Row, swaps[i].Column];
         }
 
@@ -139,9 +143,9 @@ internal class HardestMaze
             }
 
             var newScore = calculator.CalculateScore(_walls);
-            if (newScore < Inf && (newScore > lastScore))// || Math.Exp((lastScore - newScore) / temperature) > _xorShift.NextDouble()))
+            if (newScore < Inf && (newScore >= lastScore || _xorShift.NextDouble() < Math.Exp((newScore - lastScore) / temperature)))
             {
-                ShowMap();
+                //ShowMap();
                 Debug.WriteLine("Swap: " + newScore);
                 return newScore;
             }
@@ -163,9 +167,9 @@ internal class HardestMaze
         var flip = new Square(_xorShift.Next(_mazeSize), _xorShift.Next(_mazeSize));
         _walls[flip.Row, flip.Column] ^= true;
         var newScore = calculator.CalculateScore(_walls);
-        if (newScore < Inf && newScore > lastScore)
+        if (newScore < Inf && (newScore >= lastScore || _xorShift.NextDouble() < Math.Exp((newScore - lastScore) / temperature)))
         {
-            ShowMap();
+            //ShowMap();
             Debug.WriteLine("Flip: " + newScore);
             return newScore;
         }
@@ -178,7 +182,7 @@ internal class HardestMaze
 
     private void DigMain(Square current)
     {
-        if (!current.IsInsiteOf(_mazeSize) || !_walls[current.Row, current.Column])
+        if (!current.IsInsideOf(_mazeSize) || !_walls[current.Row, current.Column])
         {
             return;
         }
@@ -191,7 +195,7 @@ internal class HardestMaze
             foreach (var diff in _diffs)
             {
                 var next = current + diff;
-                if (next.IsInsiteOf(_mazeSize) && _items[next.Row, next.Column].Type != Type.None)
+                if (next.IsInsideOf(_mazeSize) && _items[next.Row, next.Column].Type != Type.None)
                 {
                     DigMain(next);
                 }
@@ -245,7 +249,7 @@ internal class HardestMaze
     {
         var next = current + diff;
         _walls[current.Row, current.Column] = false;
-        if (next.IsInsiteOf(_mazeSize))
+        if (next.IsInsideOf(_mazeSize))
         {
             if (!_walls[next.Row, next.Column])
             {
@@ -276,13 +280,15 @@ internal class HardestMaze
         Debug.WriteLine("");
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+
     private bool IsNotBridge(Square current)
     {
         var count = 0;
         foreach (var diff in _diffs)
         {
             var next = current + diff;
-            if (next.IsInsiteOf(_mazeSize) && !_walls[next.Row, next.Column])
+            if (next.IsInsideOf(_mazeSize) && !_walls[next.Row, next.Column])
             {
                 count++;
             }
@@ -331,6 +337,7 @@ internal class HardestMaze
         return grid;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Shuffle<T>(T[] array)
     {
         for (int i = array.Length - 1; i > 0; i--)
@@ -340,6 +347,7 @@ internal class HardestMaze
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Swap<T>(ref T a, ref T b)
     {
         var temp = a;
@@ -391,41 +399,40 @@ internal class ScoreCalculator
                 }
                 distances[i, i] = 0;
             }
-            Bfs(_starts[robot], -1, targets.Length, walls, distances, robot);
+            if (!Bfs(_starts[robot], -1, targets.Length, walls, distances, robot))   // ダメそうならさっさとreturn
+            {
+                return Inf;
+            }
+            
             for (int target = 0; target + 1 < targets.Length; target++)
             {
-                Bfs(targets[target], target, targets.Length, walls, distances, robot);
+                if (!Bfs(targets[target], target, targets.Length, walls, distances, robot))
+                {
+                    return Inf;
+                }
             }
             score += GetMinDistancePermutation(0, 0, targets.Length, distances);
         }
         return score;
     }
 
-    private void Bfs(Square start, int me, int targetCount, bool[,] walls, int[,] targetDistances, int currentRobot)
+    private bool Bfs(Square start, int me, int targetCount, bool[,] walls, int[,] targetDistances, int currentRobot)
     {
         var todo = new Queue<Square>();
         todo.Enqueue(start);
         var found = 0;
         var toFound = targetCount - me - 1;
         var distances = new int[_mazeSize, _mazeSize];
+        distances[start.Row, start.Column] = 1;     // Inf埋めする代わりに距離を1-indexed(?)にする
 
-        for (int i = 0; i < _mazeSize; i++)
-        {
-            for (int j = 0; j < _mazeSize; j++)
-            {
-                distances[i, j] = Inf;
-            }
-        }
-
-        distances[start.Row, start.Column] = 0;
-        while (todo.Count > 0 && found < toFound)
+        while (todo.Count > 0)
         {
             var current = todo.Dequeue();
             var currentDistance = distances[current.Row, current.Column];
             foreach (var diff in _diffs)
             {
                 var next = current + diff;
-                if (next.IsInsiteOf(_mazeSize) && !walls[next.Row, next.Column] && distances[next.Row, next.Column] == Inf)
+                if (next.IsInsideOf(_mazeSize) && !walls[next.Row, next.Column] && distances[next.Row, next.Column] == 0)
                 {
                     var nextDistance = currentDistance + 1;
                     distances[next.Row, next.Column] = nextDistance;
@@ -435,14 +442,20 @@ internal class ScoreCalculator
                     if (item.Type == Type.Taret && item.Robot == currentRobot && item.Target > me)
                     {
                         found++;
-                        targetDistances[me + 1, item.Target + 1] = nextDistance;
-                        targetDistances[item.Target + 1, me + 1] = nextDistance;
+                        targetDistances[me + 1, item.Target + 1] = nextDistance - 1;    // 距離が1始まりなので最後に1引く
+                        targetDistances[item.Target + 1, me + 1] = nextDistance - 1;
+                        if (found == toFound)
+                        {
+                            return true;
+                        }
                     }
 
                     todo.Enqueue(next);
                 }
             }
         }
+
+        return false;
     }
 
     int GetMinDistancePermutation(int current, int selected, int targetCount, int[,] distances)
@@ -472,20 +485,32 @@ internal struct Square
 {
     readonly int _row;
     readonly int _column;
-    public int Row { get { return _row; } }
-    public int Column { get { return _column; } }
 
+    public int Row 
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { return _row; } 
+    }
+    public int Column 
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { return _column; } 
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Square(int row, int column)
     {
         _row = row;
         _column = column;
     }
 
-    public bool IsInsiteOf(int mazeSize)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool IsInsideOf(int mazeSize)
     {
         return unchecked((uint)Row < mazeSize && (uint)Column < mazeSize);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ToGridIndex(int mazeSize)
     {
         return _row * mazeSize + Column;
@@ -503,12 +528,14 @@ internal struct Diff
     readonly int _dr;
     readonly int _dc;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Diff(int dr, int dc)
     {
         _dr = dr;
         _dc = dc;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Square operator+(Square sq, Diff diff)
     {
         return new Square(sq.Row + diff._dr, sq.Column + diff._dc);
@@ -519,8 +546,10 @@ internal struct Item
 {
     readonly int _flag;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Item(Type type, int robot) : this (type, robot, 0) { }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Item(Type type, int robot, int target)
     {
         _flag = (int)type;
@@ -528,9 +557,24 @@ internal struct Item
         _flag |= target << 6;
     }
 
-    public Type Type { get { return (Type)(_flag & 0x03); } }
-    public int Robot { get { return (_flag >> 2) & 0x0f; } }
-    public int Target { get { return (_flag >> 6) & 0x0f; } }
+    public Type Type 
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { return (Type)(_flag & 0x03); } 
+    }
+
+    public int Robot 
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { return (_flag >> 2) & 0x0f; } 
+    }
+
+    public int Target 
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { return (_flag >> 6) & 0x0f; } 
+    }
+
     public override string ToString()
     {
         switch (Type)
