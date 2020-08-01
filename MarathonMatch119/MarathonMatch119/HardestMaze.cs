@@ -103,7 +103,13 @@ internal class HardestMaze
             var time = (double)(stopWatch.ElapsedMilliseconds - generateLimit) / (timeLimit - generateLimit);
             var temperature = Math.Pow(t0, 1.0 - time) * Math.Pow(t1, time);
 
-            if (_xorShift.Next(100) < 70)
+            var random = _xorShift.Next(100);
+
+            if (random < 20)
+            {
+                bestScore = TryRotate(calculator, bestScore, temperature);
+            }
+            else if (random < 80)
             {
                 bestScore = TrySwap(calculator, bestScore, temperature, time);
             }
@@ -114,6 +120,36 @@ internal class HardestMaze
         }
         Debug.WriteLine("iteration: " + iteration);
         return WallToGrid(_walls);    
+    }
+
+    int TryRotate(ScoreCalculator calculator, int lastScore, double temperature)
+    {
+        var pivot = new Square(_xorShift.Next(_mazeSize - 1), _xorShift.Next(_mazeSize - 1));   // pivotか？というと違うが……ともかくRotationの左上
+        var swaps = new Square[] { new Square(pivot.Row, pivot.Column), new Square(pivot.Row, pivot.Column + 1),
+                                   new Square(pivot.Row + 1, pivot.Column + 1), new Square(pivot.Row + 1, pivot.Column) };
+        var swappedWalls = swaps.Select(sq => _walls[sq.Row, sq.Column]).ToArray();
+        var offset = _xorShift.Next(2) == 0 ? 1 : swappedWalls.Length - 1;   // 時計回りか反時計回りか
+
+        for (int i = 0; i < swaps.Length; i++)
+        {
+            _walls[swaps[i].Row, swaps[i].Column] = swappedWalls[(i + offset) % swappedWalls.Length];
+        }
+
+        var newScore = calculator.CalculateScore(_walls);
+        if (IsAcceptableScore(lastScore, newScore, temperature))
+        {
+            //ShowMap();
+            Debug.WriteLine("Rotate: " + newScore);
+            return newScore;
+        }
+        else
+        {
+            for (int i = 0; i < swaps.Length; i++)
+            {
+                _walls[swaps[i].Row, swaps[i].Column] = swappedWalls[i];
+            }
+            return lastScore;
+        }
     }
 
     int TrySwap(ScoreCalculator calculator, int lastScore, double temperature, double time)
@@ -143,7 +179,7 @@ internal class HardestMaze
             }
 
             var newScore = calculator.CalculateScore(_walls);
-            if (newScore < Inf && (newScore >= lastScore || _xorShift.NextDouble() < Math.Exp((newScore - lastScore) / temperature)))
+            if (IsAcceptableScore(lastScore, newScore, temperature))
             {
                 //ShowMap();
                 Debug.WriteLine("Swap: " + newScore);
@@ -167,7 +203,7 @@ internal class HardestMaze
         var flip = new Square(_xorShift.Next(_mazeSize), _xorShift.Next(_mazeSize));
         _walls[flip.Row, flip.Column] ^= true;
         var newScore = calculator.CalculateScore(_walls);
-        if (newScore < Inf && (newScore >= lastScore || _xorShift.NextDouble() < Math.Exp((newScore - lastScore) / temperature)))
+        if (IsAcceptableScore(lastScore, newScore, temperature))
         {
             //ShowMap();
             Debug.WriteLine("Flip: " + newScore);
@@ -178,6 +214,12 @@ internal class HardestMaze
             _walls[flip.Row, flip.Column] ^= true;
             return lastScore;
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsAcceptableScore(int lastScore, int newScore, double temperature)
+    {
+        return newScore < Inf && (newScore >= lastScore || _xorShift.NextDouble() < Math.Exp((newScore - lastScore) / temperature));
     }
 
     private void DigMain(Square current)
