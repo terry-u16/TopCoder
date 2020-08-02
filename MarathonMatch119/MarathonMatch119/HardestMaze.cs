@@ -64,14 +64,82 @@ internal class HardestMaze
     {
         const int generateLimit = 2000;
         const int timeLimit = 9900;
+        const int scoreLoop = 1 << 16;
+
         var stopWatch = new Stopwatch();
         stopWatch.Start();
         _items = InitializeItems();
         var calculator = new ScoreCalculator(_mazeSize, _starts, _targets, _items);
 
-        var bestScore = 0;
-        bool[,] bestWalls = null;
+        Stack<int> bestScoresStack;
+        var bestWallsStack = GenerateWalls(stopWatch, calculator, generateLimit, out bestScoresStack);     // いい感じの壁を生成していくつか持っておく
+        var currentScore = bestScoresStack.Pop();
+        var overallBestScore = currentScore;
+        _walls = bestWallsStack.Pop();
+        var overallBestWalls = _walls;
+        var scoreHistory = new int[scoreLoop];
+        var startTime = stopWatch.ElapsedMilliseconds;
+        
+        double t0 = currentScore * 0.001;
+        double t1 = currentScore * 0.00001;
+        int scoreImproveThreshold = (int)((currentScore + 30) * 0.01);
 
+        long iteration = 0;
+
+        while (stopWatch.ElapsedMilliseconds < timeLimit)
+        {
+            iteration++;
+            var time = (double)(stopWatch.ElapsedMilliseconds - startTime) / (timeLimit - startTime);
+            var temperature = Math.Pow(t0, 1.0 - time) * Math.Pow(t1, time);
+
+            var random = _xorShift.Next(100);
+
+            if (random < 20)
+            {
+                currentScore = TryRotate(calculator, currentScore, temperature);
+            }
+            else if (random < 80)
+            {
+                currentScore = TrySwap(calculator, currentScore, temperature, time);
+            }
+            else
+            {
+                currentScore = TryFlip(calculator, currentScore, temperature);
+            }
+
+            // 今までで一番よければ保存
+            if (overallBestScore < currentScore)
+            {
+                overallBestScore = currentScore;
+                overallBestWalls = _walls;
+                Debug.WriteLine("updated. stack:" + bestWallsStack.Count);
+            }
+
+            if (currentScore - scoreHistory[iteration & (scoreLoop - 1)] < scoreImproveThreshold && bestWallsStack.Count > 0)
+            {
+                Debug.WriteLine("current:" + currentScore);
+                Debug.WriteLine("last:" + scoreHistory[iteration & (scoreLoop - 1)]);
+                // スコアが伸びなくなったら次の初期壁を試す
+                _walls = bestWallsStack.Pop();
+                currentScore = bestScoresStack.Pop();
+                for (int i = 0; i < scoreHistory.Length; i++)
+                {
+                    scoreHistory[i] = 0;
+                }
+                startTime = stopWatch.ElapsedMilliseconds;
+            }
+            scoreHistory[iteration & (scoreLoop - 1)] = currentScore;
+        }
+
+        Debug.WriteLine("iteration: " + iteration);
+        return WallToGrid(overallBestWalls);
+    }
+
+    private Stack<bool[,]> GenerateWalls(Stopwatch stopWatch, ScoreCalculator calculator, int generateLimit, out Stack<int> bestScores)
+    {
+        var bestWalls = new Stack<bool[,]>();
+        bestScores = new Stack<int>();
+        var bestScore = 0;
         while (stopWatch.ElapsedMilliseconds < generateLimit)
         {
             _walls = InitializeWalls();
@@ -81,45 +149,12 @@ internal class HardestMaze
 
             if (score < Inf && score > bestScore)
             {
-                // 既に_wallsに入ってる
-                bestWalls = _walls;
+                bestWalls.Push(_walls);
                 bestScore = score;
-            }
-            else
-            {
-                //元に戻す
-                _walls = bestWalls;
+                bestScores.Push(score);
             }
         }
-
-        double t0 = bestScore * 0.001;
-        double t1 = bestScore * 0.00001;
-
-        var iteration = 0;
-
-        while (stopWatch.ElapsedMilliseconds < timeLimit)
-        {
-            iteration++;
-            var time = (double)(stopWatch.ElapsedMilliseconds - generateLimit) / (timeLimit - generateLimit);
-            var temperature = Math.Pow(t0, 1.0 - time) * Math.Pow(t1, time);
-
-            var random = _xorShift.Next(100);
-
-            if (random < 20)
-            {
-                bestScore = TryRotate(calculator, bestScore, temperature);
-            }
-            else if (random < 80)
-            {
-                bestScore = TrySwap(calculator, bestScore, temperature, time);
-            }
-            else
-            {
-                bestScore = TryFlip(calculator, bestScore, temperature);
-            }
-        }
-        Debug.WriteLine("iteration: " + iteration);
-        return WallToGrid(_walls);    
+        return bestWalls;
     }
 
     int TryRotate(ScoreCalculator calculator, int lastScore, double temperature)
@@ -139,7 +174,7 @@ internal class HardestMaze
         if (IsAcceptableScore(lastScore, newScore, temperature))
         {
             //ShowMap();
-            Debug.WriteLine("Rotate: " + newScore);
+            //Debug.WriteLine("Rotate: " + newScore);
             return newScore;
         }
         else
@@ -158,7 +193,6 @@ internal class HardestMaze
         const int MinSwapSquare = 3;
         const double expRatio = 10;
         int swapSquare = Math.Min(_mazeSize, (int)((MaxSwapSquare - MinSwapSquare) * Math.Exp(-time * expRatio)) + MinSwapSquare);
-        Debug.WriteLine(time + "ms :" + swapSquare);
         var offset = new Diff(_xorShift.Next(_mazeSize - swapSquare + 1), _xorShift.Next(_mazeSize - swapSquare + 1));
         var swapCount = _xorShift.Next(5); 
         swapCount = swapCount < 2 ? 2 : swapCount; // 2の回数を気持ち多めに(2,2,2,3,4点スワップ)
@@ -182,7 +216,7 @@ internal class HardestMaze
             if (IsAcceptableScore(lastScore, newScore, temperature))
             {
                 //ShowMap();
-                Debug.WriteLine("Swap: " + newScore);
+                //Debug.WriteLine("Swap: " + newScore);
                 return newScore;
             }
             else
@@ -206,7 +240,7 @@ internal class HardestMaze
         if (IsAcceptableScore(lastScore, newScore, temperature))
         {
             //ShowMap();
-            Debug.WriteLine("Flip: " + newScore);
+            //Debug.WriteLine("Flip: " + newScore);
             return newScore;
         }
         else
