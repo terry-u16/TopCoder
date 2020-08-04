@@ -105,11 +105,11 @@ internal class HardestMaze
 
             var random = _xorShift.Next(100);
 
-            if (random < 20)
+            if (random < 30)
             {
                 bestScore = TryRotate(calculator, bestScore, temperature);
             }
-            else if (random < 80)
+            else if (random < 95)
             {
                 bestScore = TrySwap(calculator, bestScore, temperature, time);
             }
@@ -128,7 +128,18 @@ internal class HardestMaze
         var swaps = new Square[] { new Square(pivot.Row, pivot.Column), new Square(pivot.Row, pivot.Column + 1),
                                    new Square(pivot.Row + 1, pivot.Column + 1), new Square(pivot.Row + 1, pivot.Column) };
         var swappedWalls = swaps.Select(sq => _walls[sq.Row, sq.Column]).ToArray();
-        var offset = _xorShift.Next(2) == 0 ? 1 : swappedWalls.Length - 1;   // 時計回りか反時計回りか
+        var offset = _xorShift.Next(3) + 1;   // 時計回りか180°回転か反時計回りか
+
+        var willChange = false;
+        for (int i = 0; i < swaps.Length; i++)
+        {
+            willChange |= _walls[swaps[i].Row, swaps[i].Column] ^ swappedWalls[(i + offset) % swappedWalls.Length];
+        }
+
+        if (!willChange)
+        {
+            return lastScore; // Swapしても意味なければやめる
+        }
 
         for (int i = 0; i < swaps.Length; i++)
         {
@@ -139,7 +150,7 @@ internal class HardestMaze
         if (IsAcceptableScore(lastScore, newScore, temperature))
         {
             //ShowMap();
-            Debug.WriteLine("Rotate: " + newScore);
+            Debug.WriteLine((newScore > lastScore ? "[Updated!]" : "") + "Rotate(" + offset + "): " + newScore);
             return newScore;
         }
         else
@@ -158,7 +169,6 @@ internal class HardestMaze
         const int MinSwapSquare = 3;
         const double expRatio = 10;
         int swapSquare = Math.Min(_mazeSize, (int)((MaxSwapSquare - MinSwapSquare) * Math.Exp(-time * expRatio)) + MinSwapSquare);
-        Debug.WriteLine(time + "ms :" + swapSquare);
         var offset = new Diff(_xorShift.Next(_mazeSize - swapSquare + 1), _xorShift.Next(_mazeSize - swapSquare + 1));
         var swapCount = _xorShift.Next(5); 
         swapCount = swapCount < 2 ? 2 : swapCount; // 2の回数を気持ち多めに(2,2,2,3,4点スワップ)
@@ -182,7 +192,7 @@ internal class HardestMaze
             if (IsAcceptableScore(lastScore, newScore, temperature))
             {
                 //ShowMap();
-                Debug.WriteLine("Swap: " + newScore);
+                Debug.WriteLine((newScore > lastScore ? "[Updated!]" : "") + "Swap(" + swapCount + ", sq:" + swapSquare + "): " + newScore);
                 return newScore;
             }
             else
@@ -206,7 +216,7 @@ internal class HardestMaze
         if (IsAcceptableScore(lastScore, newScore, temperature))
         {
             //ShowMap();
-            Debug.WriteLine("Flip: " + newScore);
+            Debug.WriteLine((newScore > lastScore ? "[Updated!]" : "") + "Flip: " + newScore);
             return newScore;
         }
         else
