@@ -64,43 +64,34 @@ internal class HardestMaze
     {
         const int generateLimit = 2000;
         const int timeLimit = 9900;
+        const double densityLimit = 0.02;
         var stopWatch = new Stopwatch();
         stopWatch.Start();
         _items = InitializeItems();
         var calculator = new ScoreCalculator(_mazeSize, _starts, _targets, _items);
 
-        var bestScore = 0;
-        bool[,] bestWalls = null;
+        int bestScore;
 
-        while (stopWatch.ElapsedMilliseconds < generateLimit)
+        if (CalculateDencity() > densityLimit)  // 密ならランダムウォーク、疎ならナルトを作る
         {
-            _walls = InitializeWalls();
-            DigMain(_starts[0]);
-            DigSub();
-            var score = calculator.CalculateScore(_walls);
-
-            if (score < Inf && score > bestScore)
-            {
-                // 既に_wallsに入ってる
-                bestWalls = _walls;
-                bestScore = score;
-            }
-            else
-            {
-                //元に戻す
-                _walls = bestWalls;
-            }
+            _walls = CreateRandom(generateLimit, stopWatch, calculator, out bestScore);
+        }
+        else
+        {
+            _walls = CreateNaruto();
+            bestScore = calculator.CalculateScore(_walls);
         }
 
         double t0 = bestScore * 0.001;
         double t1 = bestScore * 0.00001;
+        var startTime = stopWatch.ElapsedMilliseconds;
 
         var iteration = 0;
 
         while (stopWatch.ElapsedMilliseconds < timeLimit)
         {
             iteration++;
-            var time = (double)(stopWatch.ElapsedMilliseconds - generateLimit) / (timeLimit - generateLimit);
+            var time = (double)(stopWatch.ElapsedMilliseconds - startTime) / (timeLimit - startTime);
             var temperature = Math.Pow(t0, 1.0 - time) * Math.Pow(t1, time);
 
             var random = _xorShift.Next(100);
@@ -119,7 +110,14 @@ internal class HardestMaze
             }
         }
         Debug.WriteLine("iteration: " + iteration);
-        return WallToGrid(_walls);    
+        return WallToGrid(_walls);
+    }
+
+    private double CalculateDencity()
+    {
+        double area = _mazeSize * _mazeSize;
+        double items = Math.Pow(_robotCount, 1.5) * (_targetCountEach + 1);     // 色はなんとなく1.5乗する（色が少ないと渦巻きで良さそうだけど多い場合はそうでもなさそう）
+        return items / area;
     }
 
     int TryRotate(ScoreCalculator calculator, int lastScore, double temperature)
@@ -260,6 +258,34 @@ internal class HardestMaze
         }
     }
 
+    private bool[,] CreateRandom(int generateLimit, Stopwatch stopWatch, ScoreCalculator calculator, out int bestScore)
+    {
+        bool[,] bestWalls = null;
+        bestScore = 0;
+
+        while (stopWatch.ElapsedMilliseconds < generateLimit)
+        {
+            _walls = InitializeWalls();
+            DigMain(_starts[0]);
+            DigSub();
+            var score = calculator.CalculateScore(_walls);
+
+            if (score < Inf && score > bestScore)
+            {
+                // 既に_wallsに入ってる
+                bestWalls = _walls;
+                bestScore = score;
+            }
+            else
+            {
+                //元に戻す
+                _walls = bestWalls;
+            }
+        }
+
+        return bestWalls;
+    }
+
 
     private void DigSub()
     {
@@ -316,6 +342,83 @@ internal class HardestMaze
         {
             return false;
         }
+    }
+
+    private bool[,] CreateStripe()
+    {
+        var walls = new bool[_mazeSize, _mazeSize];
+        for (int row = 1; row < _mazeSize; row += 2)
+        {
+            for (int column = 1; column < _mazeSize - 1; column++)
+            {
+                walls[row, column] = true;
+            }
+        }
+
+        foreach (var start in _starts)
+        {
+            walls[start.Row, start.Column] = false;
+        }
+
+        foreach (var targetSet in _targets)
+        {
+            foreach (var target in targetSet)
+            {
+                walls[target.Row, target.Column] = false;
+            }
+        }
+
+        return walls;
+    }
+
+    private bool[,] CreateNaruto()
+    {
+        var diffs = new Diff[] { new Diff(1, 0), new Diff(0, 1), new Diff(-1, 0), new Diff(0, -1) };
+        var direction = 0;
+
+        var walls = InitializeWalls();
+        var current = new Square(0, 0);
+
+        while (true)
+        {
+            walls[current.Row, current.Column] = false;
+            var next = current + diffs[direction % 4];
+            var doubleNext = next + diffs[direction % 4];
+            if (next.IsInsideOf(_mazeSize) && (!doubleNext.IsInsideOf(_mazeSize) || walls[doubleNext.Row, doubleNext.Column]))
+            {
+                current = next;
+            }
+            else
+            {
+                direction++;
+                next = current + diffs[direction % 4];
+                doubleNext = next + diffs[direction % 4];
+
+                if (walls[next.Row, next.Column] && walls[doubleNext.Row, doubleNext.Column])
+                {
+                    current = next;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        foreach (var start in _starts)
+        {
+            walls[start.Row, start.Column] = false;
+        }
+
+        foreach (var targetSet in _targets)
+        {
+            foreach (var target in targetSet)
+            {
+                walls[target.Row, target.Column] = false;
+            }
+        }
+
+        return walls;
     }
 
     [Conditional("DEBUG")]
