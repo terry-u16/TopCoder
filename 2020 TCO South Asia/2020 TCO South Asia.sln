@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30114.105
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "2020 TCO South Asia", "2020 TCO South Asia.csproj", "{E79970EE-99F0-4932-B674-A021FF770B5F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestConsole", "..\TestConsole\TestConsole.csproj", "{F90B80B3-51AF-4EAF-B0D7-A16CD4240CD6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E79970EE-99F0-4932-B674-A021FF770B5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E79970EE-99F0-4932-B674-A021FF770B5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E79970EE-99F0-4932-B674-A021FF770B5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E79970EE-99F0-4932-B674-A021FF770B5F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F90B80B3-51AF-4EAF-B0D7-A16CD4240CD6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F90B80B3-51AF-4EAF-B0D7-A16CD4240CD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F90B80B3-51AF-4EAF-B0D7-A16CD4240CD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F90B80B3-51AF-4EAF-B0D7-A16CD4240CD6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {73869B7A-3C4A-4BBF-89AC-590C68EAE5BA}
+	EndGlobalSection
+EndGlobal

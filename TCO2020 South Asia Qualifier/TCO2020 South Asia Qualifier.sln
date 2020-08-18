@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30114.105
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TCO2020 South Asia Qualifier", "TCO2020 South Asia Qualifier.csproj", "{7EB4C0CB-FEBD-4F18-979D-48652292CB94}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7EB4C0CB-FEBD-4F18-979D-48652292CB94}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7EB4C0CB-FEBD-4F18-979D-48652292CB94}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7EB4C0CB-FEBD-4F18-979D-48652292CB94}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7EB4C0CB-FEBD-4F18-979D-48652292CB94}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {03F1D0BC-A48C-4CBF-A923-C4F36F4839E7}
+	EndGlobalSection
+EndGlobal

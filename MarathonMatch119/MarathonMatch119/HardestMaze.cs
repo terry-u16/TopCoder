@@ -63,7 +63,7 @@ internal class HardestMaze
     public char[] FindSolution()
     {
         const int generateLimit = 2000;
-        const int timeLimit = 9900;
+        const int timeLimit = 300000;
         const double densityLimit = 0.02;
         var stopWatch = new Stopwatch();
         stopWatch.Start();
